@@ -15,6 +15,7 @@ from doshitan_core import (  # noqa: E402
     PluginConfig,
     analyze_hostility,
     dispatch_hook,
+    load_state,
     read_jsonl,
 )
 
@@ -250,6 +251,43 @@ class DoshitanTests(unittest.TestCase):
             self.assertEqual(records[1]["intervention_template_id"], "neutralize")
             self.assertEqual(records[2]["event"], "session_summary")
             self.assertEqual(records[2]["mode"], "neutralize")
+
+    def test_load_state_discards_invalid_rule_counts(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            state_path = Path(tmp_dir) / "session.json"
+            _ = state_path.write_text(
+                json.dumps(
+                    {
+                        "session_id": "session-4",
+                        "mode": "neutralize",
+                        "started_at": "2026-04-07T00:00:00+00:00",
+                        "total_prompts": 3,
+                        "hostile_prompts": 2,
+                        "interventions_applied": 2,
+                        "rule_counts": {
+                            "direct_insult": 2,
+                            "blame": 0,
+                            "profanity": -1,
+                            "shouting": True,
+                            "garbage": "3",
+                        },
+                        "last_event_at": "2026-04-07T00:00:01+00:00",
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            state = load_state(
+                state_path,
+                _payload(
+                    session_id="session-4",
+                    hook_event_name="SessionStart",
+                    cwd=tmp_dir,
+                ),
+                "neutralize",
+            )
+
+            self.assertEqual(state["rule_counts"], {"direct_insult": 2})
 
 
 if __name__ == "__main__":

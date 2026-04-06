@@ -186,7 +186,6 @@ HOSTILITY_RULES = (
 SOFTENER_PATTERN = re.compile(
     r"\b(?:please|thanks|thank you|appreciate|sorry)\b", re.IGNORECASE
 )
-MODE_CHOICES = {"control", "neutralize", "positive", "soothe-then-focus"}
 
 
 def utc_now() -> str:
@@ -237,13 +236,6 @@ def _load_json_object(path: Path) -> dict[str, object] | None:
     return _as_str_object_dict(loaded)
 
 
-def _as_json_record(value: object) -> JsonRecord | None:
-    normalized = _as_str_object_dict(value)
-    if normalized is None:
-        return None
-    return normalized
-
-
 def _json_as_bool(value: object, default: bool = False) -> bool:
     if isinstance(value, bool):
         return value
@@ -262,29 +254,30 @@ def _json_as_float(value: object, default: float = 0.0) -> float:
     return default
 
 
+def _finalize_config(config: PluginConfig) -> PluginConfig:
+    config["_compiled_allowlist"] = _build_compiled_allowlist(
+        config["allowlist_patterns"]
+    )
+    return config
+
+
 def load_config(plugin_root: Path) -> PluginConfig:
     config = deepcopy(DEFAULT_CONFIG)
     path = plugin_root / ".claude-plugin" / "doshitan.config.json"
     if not path.exists():
-        config["_compiled_allowlist"] = _build_compiled_allowlist(
-            config["allowlist_patterns"]
-        )
-        return config
+        return _finalize_config(config)
 
     raw = _load_json_object(path)
     if raw is None:
-        config["_compiled_allowlist"] = _build_compiled_allowlist(
-            config["allowlist_patterns"]
-        )
-        return config
+        return _finalize_config(config)
 
     raw_mode = _as_mode(raw.get("mode"))
     if raw_mode is not None:
         config["mode"] = raw_mode
 
-    raw_threshold = raw.get("hostility_threshold")
-    if isinstance(raw_threshold, (int, float)) and not isinstance(raw_threshold, bool):
-        config["hostility_threshold"] = float(raw_threshold)
+    config["hostility_threshold"] = _json_as_float(
+        raw.get("hostility_threshold"), config["hostility_threshold"]
+    )
 
     raw_logging_enabled = raw.get("logging_enabled")
     if isinstance(raw_logging_enabled, bool):
@@ -304,10 +297,7 @@ def load_config(plugin_root: Path) -> PluginConfig:
             if isinstance(value, str):
                 config["mode_templates"][key] = value
 
-    config["_compiled_allowlist"] = _build_compiled_allowlist(
-        config["allowlist_patterns"]
-    )
-    return config
+    return _finalize_config(config)
 
 
 def resolve_paths(
@@ -333,7 +323,6 @@ def get_log_paths(project_root: Path, config: PluginConfig) -> LogPaths:
 
 
 def ensure_log_dirs(paths: LogPaths) -> None:
-    paths["root"].mkdir(parents=True, exist_ok=True)
     paths["sessions"].mkdir(parents=True, exist_ok=True)
 
 
@@ -352,7 +341,7 @@ def read_jsonl(path: Path) -> list[JsonRecord]:
             line = line.strip()
             if line:
                 loaded = cast(object, json.loads(line))
-                record = _as_json_record(loaded)
+                record = _as_str_object_dict(loaded)
                 if record is not None:
                     records.append(record)
     return records
@@ -398,26 +387,23 @@ def load_state(path: Path, payload: HookPayload, mode: Mode) -> SessionState:
     if isinstance(raw_started_at, str):
         state["started_at"] = raw_started_at
 
-    raw_total_prompts = raw.get("total_prompts")
-    if isinstance(raw_total_prompts, int) and not isinstance(raw_total_prompts, bool):
-        state["total_prompts"] = raw_total_prompts
-
-    raw_hostile_prompts = raw.get("hostile_prompts")
-    if isinstance(raw_hostile_prompts, int) and not isinstance(
-        raw_hostile_prompts, bool
-    ):
-        state["hostile_prompts"] = raw_hostile_prompts
-
-    raw_interventions = raw.get("interventions_applied")
-    if isinstance(raw_interventions, int) and not isinstance(raw_interventions, bool):
-        state["interventions_applied"] = raw_interventions
+    state["total_prompts"] = _json_as_int(
+        raw.get("total_prompts"), state["total_prompts"]
+    )
+    state["hostile_prompts"] = _json_as_int(
+        raw.get("hostile_prompts"), state["hostile_prompts"]
+    )
+    state["interventions_applied"] = _json_as_int(
+        raw.get("interventions_applied"), state["interventions_applied"]
+    )
 
     raw_rule_counts = _as_str_object_dict(raw.get("rule_counts"))
     if raw_rule_counts is not None:
         normalized_rule_counts: dict[str, int] = {}
         for key, value in raw_rule_counts.items():
-            if isinstance(value, int) and not isinstance(value, bool):
-                normalized_rule_counts[key] = value
+            count = _json_as_int(value)
+            if count > 0:
+                normalized_rule_counts[key] = count
         state["rule_counts"] = normalized_rule_counts
 
     raw_last_event_at = raw.get("last_event_at")
@@ -554,9 +540,10 @@ def log_session_summary(
     paths: LogPaths,
     state: SessionState,
 ) -> None:
+    now = utc_now()
     record: JsonRecord = {
         "event": "session_summary",
-        "timestamp": utc_now(),
+        "timestamp": now,
         "session_id": payload.get("session_id"),
         "mode": state["mode"],
         "hook_event_name": payload.get("hook_event_name"),
@@ -566,7 +553,7 @@ def log_session_summary(
         "interventions_applied": state["interventions_applied"],
         "rule_counts": state["rule_counts"],
         "started_at": state["started_at"],
-        "ended_at": utc_now(),
+        "ended_at": now,
     }
     append_jsonl(paths["metrics"], record)
 
@@ -654,8 +641,7 @@ def handle_session_end(
     state_path = session_state_path(paths, str(payload.get("session_id", "unknown")))
     state = load_state(state_path, payload, config["mode"])
     log_session_summary(payload, paths, state)
-    if state_path.exists():
-        state_path.unlink()
+    state_path.unlink(missing_ok=True)
     return None
 
 

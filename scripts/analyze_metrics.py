@@ -8,8 +8,6 @@ from pathlib import Path
 
 from doshitan_core import DEFAULT_CONFIG, Summary, read_jsonl, summarize_records
 
-EMPTY_COUNTS: dict[str, int] = {}
-
 
 class CliArgs(argparse.Namespace):
     path: str = ""
@@ -29,9 +27,9 @@ def render_text(summary: Summary) -> str:
     average_scores = summary["average_scores"]
 
     for mode in modes:
-        prompt_stats = prompts_by_mode.get(mode, EMPTY_COUNTS)
-        session_stats = sessions_by_mode.get(mode, EMPTY_COUNTS)
-        rule_counts = rule_counts_by_mode.get(mode, EMPTY_COUNTS)
+        prompt_stats = prompts_by_mode.get(mode, {})
+        session_stats = sessions_by_mode.get(mode, {})
+        rule_counts = rule_counts_by_mode.get(mode, {})
         lines.append("")
         lines.append(f"Mode: {mode}")
         lines.append(f"  Prompts: {prompt_stats.get('prompts', 0)}")

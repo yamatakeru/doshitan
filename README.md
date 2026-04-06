@@ -1,6 +1,6 @@
 # Doshitan
 
-> どしたん話聞こか？あーそれは彼氏が悪いわ
+> どしたん話聞こか？あーそれはユーザが悪いわ
 
 Partly inspired by Anthropic's report, [Emotion Concepts and their Function in a Large Language Model](https://transformer-circuits.pub/2026/emotions/index.html).
 

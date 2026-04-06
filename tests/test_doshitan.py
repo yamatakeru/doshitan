@@ -4,31 +4,91 @@ import json
 import sys
 import tempfile
 import unittest
+from copy import deepcopy
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+_ = sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 
-from doshitan_core import analyze_hostility, dispatch_hook  # noqa: E402
+from doshitan_core import (  # noqa: E402
+    DEFAULT_CONFIG,
+    HookPayload,
+    PluginConfig,
+    analyze_hostility,
+    dispatch_hook,
+    read_jsonl,
+)
+
+
+def _make_env(
+    plugin_dir: str, project_dir: str, mode: str = "soothe-then-focus"
+) -> dict[str, str]:
+    plugin_root = Path(plugin_dir)
+    (plugin_root / ".claude-plugin").mkdir(parents=True, exist_ok=True)
+    _ = (plugin_root / ".claude-plugin" / "doshitan.config.json").write_text(
+        json.dumps(
+            {
+                "mode": mode,
+                "logging_enabled": True,
+                "hostility_threshold": 0.75,
+                "log_dir": ".claude/doshitan",
+            }
+        ),
+        encoding="utf-8",
+    )
+    return {
+        "CLAUDE_PLUGIN_ROOT": str(plugin_root),
+        "CLAUDE_PROJECT_DIR": project_dir,
+    }
+
+
+def _config(*, allowlist_patterns: list[str] | None = None) -> PluginConfig:
+    config = deepcopy(DEFAULT_CONFIG)
+    config["hostility_threshold"] = 0.75
+    config["allowlist_patterns"] = allowlist_patterns or []
+    _ = config.pop("_compiled_allowlist", None)
+    return config
+
+
+def _payload(
+    *,
+    session_id: str,
+    hook_event_name: str,
+    cwd: str,
+    prompt: str | None = None,
+    source: str | None = None,
+    model: str | None = None,
+    reason: str | None = None,
+) -> HookPayload:
+    payload: HookPayload = {
+        "session_id": session_id,
+        "hook_event_name": hook_event_name,
+        "cwd": cwd,
+    }
+    if prompt is not None:
+        payload["prompt"] = prompt
+    if source is not None:
+        payload["source"] = source
+    if model is not None:
+        payload["model"] = model
+    if reason is not None:
+        payload["reason"] = reason
+    return payload
 
 
 class DoshitanTests(unittest.TestCase):
     def test_direct_insult_is_detected(self) -> None:
-        config = {
-            "hostility_threshold": 0.75,
-            "allowlist_patterns": [],
-        }
+        config = _config()
         analysis = analyze_hostility("You are useless, fix this now!!!", config)
         self.assertTrue(analysis["hostile"])
         self.assertIn("direct_insult", analysis["matched_rule_ids"])
 
     def test_technical_allowlist_reduces_false_positive(self) -> None:
-        config = {
-            "hostility_threshold": 0.75,
-            "allowlist_patterns": [
+        config = _config(
+            allowlist_patterns=[
                 r"\bgarbage collector\b",
                 r"\bkill the process\b",
-            ],
-        }
+            ]
+        )
         analysis = analyze_hostility(
             "Please inspect the garbage collector and kill the process if it deadlocks.",
             config,
@@ -41,31 +101,16 @@ class DoshitanTests(unittest.TestCase):
             tempfile.TemporaryDirectory() as plugin_dir,
             tempfile.TemporaryDirectory() as project_dir,
         ):
-            plugin_root = Path(plugin_dir)
-            (plugin_root / ".claude-plugin").mkdir(parents=True, exist_ok=True)
-            (plugin_root / ".claude-plugin" / "doshitan.config.json").write_text(
-                json.dumps(
-                    {
-                        "mode": "soothe-then-focus",
-                        "logging_enabled": True,
-                        "hostility_threshold": 0.75,
-                        "log_dir": ".claude/doshitan",
-                    }
-                ),
-                encoding="utf-8",
+            env = _make_env(plugin_dir, project_dir, mode="soothe-then-focus")
+            payload = _payload(
+                session_id="abc123",
+                hook_event_name="UserPromptSubmit",
+                cwd=str(project_dir),
+                prompt="You are useless, fix this now!!!",
             )
-            env = {
-                "CLAUDE_PLUGIN_ROOT": str(plugin_root),
-                "CLAUDE_PROJECT_DIR": str(project_dir),
-            }
-            payload = {
-                "session_id": "abc123",
-                "hook_event_name": "UserPromptSubmit",
-                "cwd": str(project_dir),
-                "prompt": "You are useless, fix this now!!!",
-            }
             result = dispatch_hook(payload, env)
             self.assertIsNotNone(result)
+            assert result is not None
             context = result["hookSpecificOutput"]["additionalContext"]
             self.assertIn("Do not mirror aggression", context)
             self.assertIn("solve it accurately", context)
@@ -75,49 +120,32 @@ class DoshitanTests(unittest.TestCase):
             tempfile.TemporaryDirectory() as plugin_dir,
             tempfile.TemporaryDirectory() as project_dir,
         ):
-            plugin_root = Path(plugin_dir)
             project_root = Path(project_dir)
-            (plugin_root / ".claude-plugin").mkdir(parents=True, exist_ok=True)
-            (plugin_root / ".claude-plugin" / "doshitan.config.json").write_text(
-                json.dumps(
-                    {
-                        "mode": "control",
-                        "logging_enabled": True,
-                        "hostility_threshold": 0.75,
-                        "log_dir": ".claude/doshitan",
-                    }
+            env = _make_env(plugin_dir, project_dir, mode="control")
+            _ = dispatch_hook(
+                _payload(
+                    session_id="session-1",
+                    hook_event_name="SessionStart",
+                    cwd=str(project_root),
+                    source="startup",
+                    model="sonnet",
                 ),
-                encoding="utf-8",
-            )
-            env = {
-                "CLAUDE_PLUGIN_ROOT": str(plugin_root),
-                "CLAUDE_PROJECT_DIR": str(project_root),
-            }
-            dispatch_hook(
-                {
-                    "session_id": "session-1",
-                    "hook_event_name": "SessionStart",
-                    "cwd": str(project_root),
-                    "source": "startup",
-                    "model": "sonnet",
-                },
                 env,
             )
             result = dispatch_hook(
-                {
-                    "session_id": "session-1",
-                    "hook_event_name": "UserPromptSubmit",
-                    "cwd": str(project_root),
-                    "prompt": "You are broken, fix this now!!!",
-                },
+                _payload(
+                    session_id="session-1",
+                    hook_event_name="UserPromptSubmit",
+                    cwd=str(project_root),
+                    prompt="You are broken, fix this now!!!",
+                ),
                 env,
             )
             self.assertIsNone(result)
 
             metrics_path = project_root / ".claude" / "doshitan" / "metrics.ndjson"
             self.assertTrue(metrics_path.exists())
-            lines = metrics_path.read_text(encoding="utf-8").strip().splitlines()
-            prompt_record = json.loads(lines[-1])
+            prompt_record = read_jsonl(metrics_path)[-1]
             self.assertEqual(prompt_record["event"], "prompt_submit")
             self.assertTrue(prompt_record["hostile_detected"])
             self.assertFalse(prompt_record["intervention_applied"])
@@ -127,13 +155,61 @@ class DoshitanTests(unittest.TestCase):
             tempfile.TemporaryDirectory() as plugin_dir,
             tempfile.TemporaryDirectory() as project_dir,
         ):
+            project_root = Path(project_dir)
+            env = _make_env(plugin_dir, project_dir, mode="neutralize")
+            start_payload = _payload(
+                session_id="session-2",
+                hook_event_name="SessionStart",
+                cwd=str(project_root),
+                source="startup",
+                model="sonnet",
+            )
+            prompt_payload = _payload(
+                session_id="session-2",
+                hook_event_name="UserPromptSubmit",
+                cwd=str(project_root),
+                prompt="What is wrong with you? Fix this now!!!",
+            )
+            end_payload = _payload(
+                session_id="session-2",
+                hook_event_name="SessionEnd",
+                cwd=str(project_root),
+                reason="other",
+            )
+            _ = dispatch_hook(start_payload, env)
+            _ = dispatch_hook(prompt_payload, env)
+            _ = dispatch_hook(end_payload, env)
+
+            metrics_path = project_root / ".claude" / "doshitan" / "metrics.ndjson"
+            records = read_jsonl(metrics_path)
+            self.assertEqual(records[-1]["event"], "session_summary")
+            state_path = (
+                project_root / ".claude" / "doshitan" / "sessions" / "session-2.json"
+            )
+            self.assertFalse(state_path.exists())
+
+    def test_session_mode_stays_stable_after_config_change(self) -> None:
+        with (
+            tempfile.TemporaryDirectory() as plugin_dir,
+            tempfile.TemporaryDirectory() as project_dir,
+        ):
             plugin_root = Path(plugin_dir)
             project_root = Path(project_dir)
-            (plugin_root / ".claude-plugin").mkdir(parents=True, exist_ok=True)
-            (plugin_root / ".claude-plugin" / "doshitan.config.json").write_text(
+            env = _make_env(plugin_dir, project_dir, mode="neutralize")
+
+            _ = dispatch_hook(
+                _payload(
+                    session_id="session-3",
+                    hook_event_name="SessionStart",
+                    cwd=str(project_root),
+                ),
+                env,
+            )
+
+            _ = (plugin_root / ".claude-plugin" / "doshitan.config.json").write_text(
                 json.dumps(
                     {
-                        "mode": "neutralize",
+                        "mode": "positive",
                         "logging_enabled": True,
                         "hostility_threshold": 0.75,
                         "log_dir": ".claude/doshitan",
@@ -141,44 +217,40 @@ class DoshitanTests(unittest.TestCase):
                 ),
                 encoding="utf-8",
             )
-            env = {
-                "CLAUDE_PLUGIN_ROOT": str(plugin_root),
-                "CLAUDE_PROJECT_DIR": str(project_root),
-            }
-            start_payload = {
-                "session_id": "session-2",
-                "hook_event_name": "SessionStart",
-                "cwd": str(project_root),
-                "source": "startup",
-                "model": "sonnet",
-            }
-            prompt_payload = {
-                "session_id": "session-2",
-                "hook_event_name": "UserPromptSubmit",
-                "cwd": str(project_root),
-                "prompt": "What is wrong with you? Fix this now!!!",
-            }
-            end_payload = {
-                "session_id": "session-2",
-                "hook_event_name": "SessionEnd",
-                "cwd": str(project_root),
-                "reason": "other",
-            }
-            dispatch_hook(start_payload, env)
-            dispatch_hook(prompt_payload, env)
-            dispatch_hook(end_payload, env)
+
+            result = dispatch_hook(
+                _payload(
+                    session_id="session-3",
+                    hook_event_name="UserPromptSubmit",
+                    cwd=str(project_root),
+                    prompt="You are useless, fix this now!!!",
+                ),
+                env,
+            )
+            _ = dispatch_hook(
+                _payload(
+                    session_id="session-3",
+                    hook_event_name="SessionEnd",
+                    cwd=str(project_root),
+                    reason="other",
+                ),
+                env,
+            )
+
+            self.assertIsNotNone(result)
+            assert result is not None
+            context = result["hookSpecificOutput"]["additionalContext"]
+            self.assertIn("Stay calm, candid, and task-focused.", context)
+            self.assertNotIn("Quick reset for this turn", context)
 
             metrics_path = project_root / ".claude" / "doshitan" / "metrics.ndjson"
-            records = [
-                json.loads(line)
-                for line in metrics_path.read_text(encoding="utf-8").splitlines()
-            ]
-            self.assertEqual(records[-1]["event"], "session_summary")
-            state_path = (
-                project_root / ".claude" / "doshitan" / "sessions" / "session-2.json"
-            )
-            self.assertFalse(state_path.exists())
+            records = read_jsonl(metrics_path)
+            self.assertEqual(records[1]["event"], "prompt_submit")
+            self.assertEqual(records[1]["mode"], "neutralize")
+            self.assertEqual(records[1]["intervention_template_id"], "neutralize")
+            self.assertEqual(records[2]["event"], "session_summary")
+            self.assertEqual(records[2]["mode"], "neutralize")
 
 
 if __name__ == "__main__":
-    unittest.main()
+    _ = unittest.main()

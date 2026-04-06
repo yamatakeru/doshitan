@@ -6,62 +6,66 @@ import argparse
 import json
 from pathlib import Path
 
-from doshitan_core import summarize_records
+from doshitan_core import DEFAULT_CONFIG, Summary, read_jsonl, summarize_records
+
+EMPTY_COUNTS: dict[str, int] = {}
 
 
-def load_records(path: Path) -> list[dict]:
-    records: list[dict] = []
-    if not path.exists():
-        return records
-
-    with path.open(encoding="utf-8") as handle:
-        for line in handle:
-            line = line.strip()
-            if not line:
-                continue
-            records.append(json.loads(line))
-    return records
+class CliArgs(argparse.Namespace):
+    path: str = ""
+    json: bool = False
 
 
-def render_text(summary: dict) -> str:
+def render_text(summary: Summary) -> str:
     lines = ["Doshitan metrics summary"]
-    modes = summary.get("modes", [])
+    modes = summary["modes"]
     if not modes:
         lines.append("No records found.")
         return "\n".join(lines)
 
+    prompts_by_mode = summary["prompts_by_mode"]
+    sessions_by_mode = summary["sessions_by_mode"]
+    rule_counts_by_mode = summary["rule_counts_by_mode"]
+    average_scores = summary["average_scores"]
+
     for mode in modes:
-        prompt_stats = summary.get("prompts_by_mode", {}).get(mode, {})
-        session_stats = summary.get("sessions_by_mode", {}).get(mode, {})
-        rule_counts = summary.get("rule_counts_by_mode", {}).get(mode, {})
+        prompt_stats = prompts_by_mode.get(mode, EMPTY_COUNTS)
+        session_stats = sessions_by_mode.get(mode, EMPTY_COUNTS)
+        rule_counts = rule_counts_by_mode.get(mode, EMPTY_COUNTS)
         lines.append("")
         lines.append(f"Mode: {mode}")
         lines.append(f"  Prompts: {prompt_stats.get('prompts', 0)}")
         lines.append(f"  Hostile prompts: {prompt_stats.get('hostile_prompts', 0)}")
-        lines.append(f"  Interventions applied: {prompt_stats.get('interventions_applied', 0)}")
-        lines.append(f"  Average hostility score: {summary.get('average_scores', {}).get(mode, 0.0)}")
+        lines.append(
+            f"  Interventions applied: {prompt_stats.get('interventions_applied', 0)}"
+        )
+        lines.append(f"  Average hostility score: {average_scores.get(mode, 0.0)}")
         lines.append(f"  Sessions: {session_stats.get('sessions', 0)}")
         if rule_counts:
-            top_rules = ", ".join(f"{rule}={count}" for rule, count in list(rule_counts.items())[:5])
+            top_rules = ", ".join(
+                f"{rule}={count}" for rule, count in list(rule_counts.items())[:5]
+            )
             lines.append(f"  Top matched rules: {top_rules}")
     return "\n".join(lines)
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Aggregate Doshitan metadata logs.")
-    parser.add_argument(
+    default_path = str(Path(DEFAULT_CONFIG["log_dir"]) / "metrics.ndjson")
+    _ = parser.add_argument(
         "--path",
-        default=".claude/doshitan/metrics.ndjson",
+        default=default_path,
         help="Path to the NDJSON metrics file.",
     )
-    parser.add_argument(
+    _ = parser.add_argument(
         "--json",
         action="store_true",
         help="Print the summary as JSON.",
     )
-    args = parser.parse_args()
+    args = CliArgs()
+    _ = parser.parse_args(namespace=args)
 
-    records = load_records(Path(args.path))
+    records = read_jsonl(Path(args.path))
     summary = summarize_records(records)
 
     if args.json:

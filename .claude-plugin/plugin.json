@@ -19,18 +19,21 @@
     "mode": {
       "type": "string",
       "title": "Mode",
+      "default": "soothe-then-focus",
       "description": "Recovery mode: control, neutralize, positive, or soothe-then-focus.",
       "sensitive": false
     },
     "hostility_threshold": {
       "type": "number",
       "title": "Hostility threshold",
+      "default": 0.75,
       "description": "Hostility score threshold for intervention, for example 0.75.",
       "sensitive": false
     },
     "logging_enabled": {
       "type": "boolean",
       "title": "Logging enabled",
+      "default": false,
       "description": "Enable metadata logging: true or false.",
       "sensitive": false
     }

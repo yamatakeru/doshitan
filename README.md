@@ -37,9 +37,9 @@ If the plugin is installed normally in Claude Code, use the plugin's user-facing
 
 These are the settings that ordinary users are expected to change:
 
-- `mode`: `control`, `neutralize`, `positive`, or `soothe-then-focus`
-- `hostility_threshold`: float threshold for intervention
-- `logging_enabled`: enable or disable metadata logging
+- `mode`: `control`, `neutralize`, `positive`, or `soothe-then-focus` (default: `soothe-then-focus`)
+- `hostility_threshold`: float threshold for intervention (default: `0.75`)
+- `logging_enabled`: enable or disable metadata logging (default: `false`)
 
 ### Modes
 

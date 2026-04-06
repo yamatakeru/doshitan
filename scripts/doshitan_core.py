@@ -85,7 +85,7 @@ JsonRecord = dict[str, object]
 DEFAULT_CONFIG: PluginConfig = {
     "mode": "soothe-then-focus",
     "hostility_threshold": 0.75,
-    "logging_enabled": True,
+    "logging_enabled": False,
     "log_dir": ".claude/doshitan",
     "allowlist_patterns": [
         r"\bgarbage collector\b",

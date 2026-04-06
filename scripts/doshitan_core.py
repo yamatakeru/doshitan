@@ -255,7 +255,7 @@ def _json_as_float(value: object, default: float = 0.0) -> float:
 
 
 def _parse_bool_text(value: str) -> bool | None:
-    normalized = value.strip().lower()
+    normalized = value.lower()
     if normalized in {"1", "true", "yes", "on"}:
         return True
     if normalized in {"0", "false", "no", "off"}:
@@ -265,7 +265,7 @@ def _parse_bool_text(value: str) -> bool | None:
 
 def _parse_float_text(value: str) -> float | None:
     try:
-        return float(value.strip())
+        return float(value)
     except ValueError:
         return None
 
@@ -297,10 +297,10 @@ def load_config(
     config = deepcopy(DEFAULT_CONFIG)
     path = plugin_root / ".claude-plugin" / "doshitan.config.json"
     effective_env: Mapping[str, str] = os.environ if env is None else env
-    if not path.exists():
-        raw = None
-    else:
+    try:
         raw = _load_json_object(path)
+    except FileNotFoundError:
+        raw = None
 
     if raw is not None:
         raw_mode = _as_mode(raw.get("mode"))

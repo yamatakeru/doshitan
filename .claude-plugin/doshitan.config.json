@@ -1,7 +1,4 @@
 {
-  "mode": "soothe-then-focus",
-  "hostility_threshold": 0.75,
-  "logging_enabled": true,
   "log_dir": ".claude/doshitan",
   "allowlist_patterns": [
     "\\bgarbage collector\\b",

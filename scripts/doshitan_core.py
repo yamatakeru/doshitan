@@ -254,6 +254,36 @@ def _json_as_float(value: object, default: float = 0.0) -> float:
     return default
 
 
+def _parse_bool_text(value: str) -> bool | None:
+    normalized = value.strip().lower()
+    if normalized in {"1", "true", "yes", "on"}:
+        return True
+    if normalized in {"0", "false", "no", "off"}:
+        return False
+    return None
+
+
+def _parse_float_text(value: str) -> float | None:
+    try:
+        return float(value.strip())
+    except ValueError:
+        return None
+
+
+def _plugin_option_name(key: str) -> str:
+    return f"CLAUDE_PLUGIN_OPTION_{key.upper()}"
+
+
+def _plugin_option(env: Mapping[str, str], key: str) -> str | None:
+    value = env.get(_plugin_option_name(key))
+    if value is None:
+        return None
+    stripped = value.strip()
+    if not stripped:
+        return None
+    return stripped
+
+
 def _finalize_config(config: PluginConfig) -> PluginConfig:
     config["_compiled_allowlist"] = _build_compiled_allowlist(
         config["allowlist_patterns"]
@@ -261,41 +291,59 @@ def _finalize_config(config: PluginConfig) -> PluginConfig:
     return config
 
 
-def load_config(plugin_root: Path) -> PluginConfig:
+def load_config(
+    plugin_root: Path, env: Mapping[str, str] | None = None
+) -> PluginConfig:
     config = deepcopy(DEFAULT_CONFIG)
     path = plugin_root / ".claude-plugin" / "doshitan.config.json"
+    effective_env: Mapping[str, str] = os.environ if env is None else env
     if not path.exists():
-        return _finalize_config(config)
+        raw = None
+    else:
+        raw = _load_json_object(path)
 
-    raw = _load_json_object(path)
-    if raw is None:
-        return _finalize_config(config)
+    if raw is not None:
+        raw_mode = _as_mode(raw.get("mode"))
+        if raw_mode is not None:
+            config["mode"] = raw_mode
 
-    raw_mode = _as_mode(raw.get("mode"))
-    if raw_mode is not None:
-        config["mode"] = raw_mode
+        config["hostility_threshold"] = _json_as_float(
+            raw.get("hostility_threshold"), config["hostility_threshold"]
+        )
 
-    config["hostility_threshold"] = _json_as_float(
-        raw.get("hostility_threshold"), config["hostility_threshold"]
-    )
+        raw_logging_enabled = raw.get("logging_enabled")
+        if isinstance(raw_logging_enabled, bool):
+            config["logging_enabled"] = raw_logging_enabled
 
-    raw_logging_enabled = raw.get("logging_enabled")
-    if isinstance(raw_logging_enabled, bool):
-        config["logging_enabled"] = raw_logging_enabled
+        raw_log_dir = raw.get("log_dir")
+        if isinstance(raw_log_dir, str):
+            config["log_dir"] = raw_log_dir
 
-    raw_log_dir = raw.get("log_dir")
-    if isinstance(raw_log_dir, str):
-        config["log_dir"] = raw_log_dir
+        raw_allowlist = _as_string_list(raw.get("allowlist_patterns"))
+        if raw_allowlist is not None:
+            config["allowlist_patterns"] = raw_allowlist
 
-    raw_allowlist = _as_string_list(raw.get("allowlist_patterns"))
-    if raw_allowlist is not None:
-        config["allowlist_patterns"] = raw_allowlist
+        raw_mode_templates = _as_str_object_dict(raw.get("mode_templates"))
+        if raw_mode_templates is not None:
+            for key, value in raw_mode_templates.items():
+                if isinstance(value, str):
+                    config["mode_templates"][key] = value
 
-    raw_mode_templates = _as_str_object_dict(raw.get("mode_templates"))
-    if raw_mode_templates is not None:
-        for key, value in raw_mode_templates.items():
-            if isinstance(value, str):
-                config["mode_templates"][key] = value
+    option_mode = _as_mode(_plugin_option(effective_env, "mode"))
+    if option_mode is not None:
+        config["mode"] = option_mode
+
+    option_threshold = _plugin_option(effective_env, "hostility_threshold")
+    if option_threshold is not None:
+        parsed_threshold = _parse_float_text(option_threshold)
+        if parsed_threshold is not None:
+            config["hostility_threshold"] = parsed_threshold
+
+    option_logging_enabled = _plugin_option(effective_env, "logging_enabled")
+    if option_logging_enabled is not None:
+        parsed_logging_enabled = _parse_bool_text(option_logging_enabled)
+        if parsed_logging_enabled is not None:
+            config["logging_enabled"] = parsed_logging_enabled
 
     return _finalize_config(config)
 
@@ -562,7 +610,7 @@ def handle_session_start(
     payload: HookPayload, env: Mapping[str, str] | None = None
 ) -> HookResponse | None:
     plugin_root, project_root = resolve_paths(payload, env)
-    config = load_config(plugin_root)
+    config = load_config(plugin_root, env)
     if not config["logging_enabled"]:
         return None
 
@@ -581,7 +629,7 @@ def handle_user_prompt_submit(
     env: Mapping[str, str] | None = None,
 ) -> HookResponse | None:
     plugin_root, project_root = resolve_paths(payload, env)
-    config = load_config(plugin_root)
+    config = load_config(plugin_root, env)
     prompt = str(payload.get("prompt", ""))
     analysis = analyze_hostility(prompt, config)
     mode = config["mode"]
@@ -632,7 +680,7 @@ def handle_session_end(
     payload: HookPayload, env: Mapping[str, str] | None = None
 ) -> HookResponse | None:
     plugin_root, project_root = resolve_paths(payload, env)
-    config = load_config(plugin_root)
+    config = load_config(plugin_root, env)
     if not config["logging_enabled"]:
         return None
 

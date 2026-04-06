@@ -21,24 +21,33 @@ from doshitan_core import (  # noqa: E402
 
 
 def _make_env(
-    plugin_dir: str, project_dir: str, mode: str = "soothe-then-focus"
+    plugin_dir: str,
+    project_dir: str,
+    mode: str = "soothe-then-focus",
+    *,
+    hostility_threshold: float = 0.75,
+    logging_enabled: bool = True,
+    config_overrides: dict[str, object] | None = None,
 ) -> dict[str, str]:
     plugin_root = Path(plugin_dir)
     (plugin_root / ".claude-plugin").mkdir(parents=True, exist_ok=True)
+    config = {
+        "log_dir": ".claude/doshitan",
+    }
+    if config_overrides is not None:
+        config.update(config_overrides)
     _ = (plugin_root / ".claude-plugin" / "doshitan.config.json").write_text(
-        json.dumps(
-            {
-                "mode": mode,
-                "logging_enabled": True,
-                "hostility_threshold": 0.75,
-                "log_dir": ".claude/doshitan",
-            }
-        ),
+        json.dumps(config),
         encoding="utf-8",
     )
     return {
         "CLAUDE_PLUGIN_ROOT": str(plugin_root),
         "CLAUDE_PROJECT_DIR": project_dir,
+        "CLAUDE_PLUGIN_OPTION_MODE": mode,
+        "CLAUDE_PLUGIN_OPTION_HOSTILITY_THRESHOLD": str(hostility_threshold),
+        "CLAUDE_PLUGIN_OPTION_LOGGING_ENABLED": (
+            "true" if logging_enabled else "false"
+        ),
     }
 
 
@@ -150,6 +159,32 @@ class DoshitanTests(unittest.TestCase):
             self.assertEqual(prompt_record["event"], "prompt_submit")
             self.assertTrue(prompt_record["hostile_detected"])
             self.assertFalse(prompt_record["intervention_applied"])
+
+    def test_logging_can_be_disabled_via_user_option(self) -> None:
+        with (
+            tempfile.TemporaryDirectory() as plugin_dir,
+            tempfile.TemporaryDirectory() as project_dir,
+        ):
+            project_root = Path(project_dir)
+            env = _make_env(
+                plugin_dir,
+                project_dir,
+                mode="soothe-then-focus",
+                logging_enabled=False,
+            )
+            result = dispatch_hook(
+                _payload(
+                    session_id="session-no-log",
+                    hook_event_name="UserPromptSubmit",
+                    cwd=str(project_root),
+                    prompt="You are useless, fix this now!!!",
+                ),
+                env,
+            )
+
+            self.assertIsNotNone(result)
+            metrics_path = project_root / ".claude" / "doshitan" / "metrics.ndjson"
+            self.assertFalse(metrics_path.exists())
 
     def test_session_end_writes_summary_and_removes_state(self) -> None:
         with (
@@ -288,6 +323,38 @@ class DoshitanTests(unittest.TestCase):
             )
 
             self.assertEqual(state["rule_counts"], {"direct_insult": 2})
+
+    def test_user_option_overrides_file_config(self) -> None:
+        with (
+            tempfile.TemporaryDirectory() as plugin_dir,
+            tempfile.TemporaryDirectory() as project_dir,
+        ):
+            env = _make_env(
+                plugin_dir,
+                project_dir,
+                mode="positive",
+                config_overrides={
+                    "mode": "neutralize",
+                    "hostility_threshold": 0.95,
+                    "logging_enabled": True,
+                },
+            )
+
+            result = dispatch_hook(
+                _payload(
+                    session_id="session-override",
+                    hook_event_name="UserPromptSubmit",
+                    cwd=str(project_dir),
+                    prompt="You are useless, fix this now!!!",
+                ),
+                env,
+            )
+
+            self.assertIsNotNone(result)
+            assert result is not None
+            context = result["hookSpecificOutput"]["additionalContext"]
+            self.assertIn("Quick reset for this turn", context)
+            self.assertNotIn("Stay calm, candid, and task-focused.", context)
 
 
 if __name__ == "__main__":

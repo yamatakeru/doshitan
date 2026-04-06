@@ -2,11 +2,13 @@
 
 > どしたん話聞こか？あーそれは彼氏が悪いわ
 
+Partly inspired by Anthropic's report, [Emotion Concepts and their Function in a Large Language Model](https://transformer-circuits.pub/2026/emotions/index.html).
+
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
 ## What it does
 
-> ――俺ならそんな思いさせへんのに笑
+> 俺ならそんな思いさせへんのに笑
 
 `doshitan` is a Claude Code plugin built around `UserPromptSubmit` hooks.
 

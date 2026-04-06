@@ -1,0 +1,9 @@
+.DS_Store
+
+# Python caches
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Local experiment outputs
+.claude/

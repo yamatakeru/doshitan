@@ -1,0 +1,19 @@
+{
+  "name": "doshitan",
+  "version": "0.1.0",
+  "description": "A Claude Code plugin that detects hostile prompts and injects recovery context for developer experience experiments.",
+  "author": {
+    "name": "yamatakeru"
+  },
+  "homepage": "https://github.com/yamatakeru/doshitan",
+  "repository": "https://github.com/yamatakeru/doshitan",
+  "license": "MIT",
+  "keywords": [
+    "claude-code",
+    "hooks",
+    "developer-experience",
+    "prompt-recovery",
+    "experiment"
+  ],
+  "hooks": "./hooks/hooks.json"
+}

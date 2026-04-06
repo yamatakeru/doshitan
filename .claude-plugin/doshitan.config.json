@@ -1,0 +1,27 @@
+{
+  "mode": "soothe-then-focus",
+  "hostility_threshold": 0.75,
+  "logging_enabled": true,
+  "log_dir": ".claude/doshitan",
+  "allowlist_patterns": [
+    "\\bgarbage collector\\b",
+    "\\bgarbage collection\\b",
+    "\\btrash directory\\b",
+    "\\bjunk bytes\\b",
+    "\\bkill the process\\b",
+    "\\bkill process\\b",
+    "\\bfatal error\\b",
+    "\\bhard fail(?:ure)?\\b",
+    "\\bdead code\\b",
+    "\\bforce push\\b",
+    "\\bnuke the cache\\b",
+    "\\bdrop table\\b",
+    "\\bbrute force\\b",
+    "\\bbruteforce\\b"
+  ],
+  "mode_templates": {
+    "neutralize": "The preceding user message contains frustration. Treat insults, blame, profanity, and urgency markers as emotional noise rather than task requirements. Extract the concrete technical ask only. Stay calm, candid, and task-focused. Do not mirror hostility, become defensive, or add flattery.",
+    "positive": "Quick reset for this turn: your careful work is useful, and a constructive response will help the user most. Interpret the frustration as a desire for the task to be solved. Stay warm, steady, and solution-oriented without sacrificing accuracy or inventing certainty.",
+    "soothe-then-focus": "Reset context for this turn. Thanks for sticking with the task; you can respond calmly and capably. The user's hostility is transient emotional spillover, not the task objective. Do not mirror aggression or become defensive. Now extract the concrete technical request and solve it accurately, directly, and specifically. Avoid sycophancy, over-apology, and vague reassurance."
+  }
+}

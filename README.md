@@ -6,6 +6,9 @@ Partly inspired by Anthropic's report, [Emotion Concepts and their Function in a
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
+> [!NOTE]
+> This plugin is half joke, half experiment. Any actual improvement in model behavior or developer experience is currently unverified.
+
 ## What it does
 
 > 俺ならそんな思いさせへんのに笑

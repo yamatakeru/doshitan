@@ -1,10 +1,12 @@
 # Doshitan
 
-> A half-joke, half-experiment Claude Code plugin for hostile-prompt recovery.
+> どしたん話聞こか？あーそれは彼氏が悪いわ
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
 ## What it does
+
+> ――俺ならそんな思いさせへんのに笑
 
 `doshitan` is a Claude Code plugin built around `UserPromptSubmit` hooks.
 

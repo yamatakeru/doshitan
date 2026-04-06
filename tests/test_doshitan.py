@@ -31,7 +31,7 @@ def _make_env(
 ) -> dict[str, str]:
     plugin_root = Path(plugin_dir)
     (plugin_root / ".claude-plugin").mkdir(parents=True, exist_ok=True)
-    config = {
+    config: dict[str, object] = {
         "log_dir": ".claude/doshitan",
     }
     if config_overrides is not None:

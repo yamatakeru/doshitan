@@ -1,6 +1,6 @@
 {
   "name": "doshitan",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "どしたん話聞こか？あーそれはユーザが悪いわ: A Claude Code plugin that detects hostile prompts and injects recovery context for developer experience experiments.",
   "author": {
     "name": "yamatakeru"

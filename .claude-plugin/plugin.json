@@ -37,6 +37,5 @@
       "description": "Enable metadata logging: true or false.",
       "sensitive": false
     }
-  },
-  "hooks": "./hooks/hooks.json"
+  }
 }

@@ -26,15 +26,32 @@ The default mode is `soothe-then-focus`: de-escalate first, then push Claude bac
 
 ## For users
 
-### Basic use
+### Install via marketplace
 
-If you are running the plugin directly from this repository:
+In Claude Code:
+
+```
+/plugin marketplace add yamatakeru/doshitan
+/plugin install doshitan@doshitan
+/reload-plugins
+```
+
+After install, configure mode, threshold, and logging via the plugin's user-facing options (see [User-facing settings](#user-facing-settings) below).
+
+To pull a new version later:
+
+```
+/plugin marketplace update doshitan
+/reload-plugins
+```
+
+### Run from a local checkout
+
+For trying the plugin without installing it through the marketplace:
 
 ```bash
 claude --plugin-dir .
 ```
-
-If the plugin is installed normally in Claude Code, use the plugin's user-facing options when you enable or configure it.
 
 ### User-facing settings
 

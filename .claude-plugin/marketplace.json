@@ -11,7 +11,7 @@
     {
       "name": "doshitan",
       "source": "./",
-      "description": "Detects hostile prompts and injects recovery context for developer experience experiments."
+      "description": "Detects hostile prompts and injects recovery context for developer experience experiments. Note: hostility detection is currently English-only."
     }
   ]
 }

@@ -9,6 +9,9 @@ Partly inspired by Anthropic's report, [Emotion Concepts and their Function in a
 > [!NOTE]
 > This plugin is half joke, half experiment. Any actual improvement in model behavior or developer experience is currently unverified.
 
+> [!WARNING]
+> Hostility detection is currently English-only. The scoring patterns use ASCII word boundaries (`\b`), so Japanese (and other non-space-segmented languages) prompts score 0 and never trigger intervention. The Japanese branding reflects the project's spirit, not the detector's coverage.
+
 ## What it does
 
 > 俺ならそんな思いさせへんのに笑

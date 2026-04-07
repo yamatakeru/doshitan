@@ -1,0 +1,17 @@
+{
+  "name": "doshitan",
+  "owner": {
+    "name": "yamatakeru",
+    "url": "https://github.com/yamatakeru"
+  },
+  "metadata": {
+    "description": "どしたん話聞こか？あーそれはユーザが悪いわ: A Claude Code plugin marketplace for doshitan, which detects hostile prompts and injects recovery context for developer experience experiments."
+  },
+  "plugins": [
+    {
+      "name": "doshitan",
+      "source": "./",
+      "description": "Detects hostile prompts and injects recovery context for developer experience experiments."
+    }
+  ]
+}
